@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1085052141344",
+    "project_id": "chess-opening-diary",
+    "storage_bucket": "chess-opening-diary.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1085052141344:android:9c195c7fe6a98f28cc6145",
+        "android_client_info": {
+          "package_name": "com.maxjbh.chess_opening_diary"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1085052141344-dvr7p6aslcf4gm8cubvou6lk5f6v1i8e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA5vz5JAR3n_SGfSjvZ2uuhcgrTVQMLUX0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1085052141344-dvr7p6aslcf4gm8cubvou6lk5f6v1i8e.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
