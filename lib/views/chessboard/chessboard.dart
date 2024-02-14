@@ -5,6 +5,7 @@ import 'package:chess_opening_diary/views/chessboard/chessboard_controller_cubit
 import 'package:chess_opening_diary/views/chessboard/tile.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:ui' as ui show Image;
 
 import '../../chess_logic/pieces/knight.dart';
@@ -23,13 +24,24 @@ class Chessboard extends StatelessWidget {
       future: _loadRequiredImages(),
         builder: (context, snap) {
         if(snap.hasData){
-          return CustomPaint(
-            painter: ChessboardPainter(chessImageTools: chessImageTools, controllerCubit: controllerCubit),
-            child: SizedBox.square(
-              dimension: controllerCubit.size,
+          return GestureDetector(
+              onTapDown: (TapDownDetails pointerEvent) {
+                controllerCubit.handleClick(pointerEvent);
+              },
+              child: BlocBuilder<ChessboardControllerCubit, ChessboardControllerState>(
+                bloc: controllerCubit,
+                builder: (context, state) {
+                  debugPrint("rebuilding!");
+                  return CustomPaint(
+                              painter: ChessboardPainter(chessImageTools: chessImageTools, controllerCubit: controllerCubit),
+                              child: SizedBox.square(
+                                dimension: controllerCubit.size,
+                              ),
+                              // For painting on foreground
+                              // foregroundPainter: DemoPainter(),
+                            );
+                },
             ),
-            // For painting on foreground
-            // foregroundPainter: DemoPainter(),
           );
         }else{
           return const CircularProgressIndicator();
@@ -64,6 +76,17 @@ class ChessboardPainter extends CustomPainter{
   final ImageTools chessImageTools;
   final ChessboardControllerCubit controllerCubit;
 
+  final Paint selectedTilePainter = Paint()
+    ..color = Colors.yellow.withOpacity(0.4);
+
+  final Paint captureCirclePainter = Paint()
+    ..color = Colors.black54.withOpacity(0.2)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 15.0;
+
+  final Paint posibleMovePainter = Paint()
+    ..color = Colors.black54.withOpacity(0.2);
+
   ChessboardPainter({required this.chessImageTools, required this.controllerCubit}): super(repaint: controllerCubit.boardPainterUpdateNotifier);
 
 
@@ -72,6 +95,8 @@ class ChessboardPainter extends CustomPainter{
     double squareSize = controllerCubit.size/8.0;
 
     var paint = Paint();
+      
+    //selectedTilePainter
 
     for(int rowIndex = 0; rowIndex<8; rowIndex++){
       List<Tile> rowData = controllerCubit.tilesData.elementAt(rowIndex);
@@ -80,25 +105,40 @@ class ChessboardPainter extends CustomPainter{
         //Draw tile
         double xOffset = colIndex * squareSize;
         double yOffset = rowIndex * squareSize;
+        double xCenter = xOffset + squareSize/2;
+        double yCenter = yOffset + squareSize/2;
         var offset = Offset(xOffset, yOffset);
         if(tileData.lightTile){
           canvas.drawImage(chessImageTools.loadedImageMap[ImageTools.lightSquareKey]!, offset, paint);
         }else{
           canvas.drawImage(chessImageTools.loadedImageMap[ImageTools.darkSquareKey]!, offset, paint);
         }
+        if(tileData.isSelected){
+          canvas.drawRect(
+              Rect.fromLTWH(xOffset, yOffset, squareSize, squareSize),
+              selectedTilePainter
+          );
+        }
+        //Draw piece
         Piece? piece = tileData.piece;
         if(piece != null){
-          //TODO delete check
-          if(chessImageTools.loadedImageMap[piece.imageKey] != null){
-            canvas.drawImage(chessImageTools.loadedImageMap[piece.imageKey]!, offset, paint);
-          }
+          canvas.drawImage(chessImageTools.loadedImageMap[piece.imageKey]!, offset, paint);
         }
+        if(tileData.doDrawCaptureCircle){
+          canvas.drawCircle(Offset(xCenter, yCenter), squareSize/2 - 6.0, captureCirclePainter);
+        }
+        if(tileData.isPossibleMove){
+          canvas.drawCircle(Offset(xCenter, yCenter), squareSize/4, posibleMovePainter);
+        }
+        
       }
     }
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return false;
+    bool shouldRepaintCopy = controllerCubit.shouldRepaint;
+    controllerCubit.setShouldRepaint(false);
+    return shouldRepaintCopy;
   }
 }

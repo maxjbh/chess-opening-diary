@@ -1,9 +1,11 @@
 import 'package:chess_opening_diary/chess_logic/pieces/piece.dart';
 
 class Tile{
-  Tile(this.lightTile, {this.piece});
+  Tile(this.lightTile, this.x, this.y, {this.piece});
 
   final bool lightTile;
+  final int x;
+  final int y;
   Piece? piece;
   ///Sais if we need to highlight the tile
   bool isSelected = false;

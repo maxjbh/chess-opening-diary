@@ -5,7 +5,8 @@ abstract class Piece{
 
   final bool lightPiece;
   final String imageKey;
+
+  /// Sais how to calculate where the piece can move
   final PieceMoveAlgorithm pieceMoveAlgorithm;
-  //TODO set this to true after it moves, and handle enPassantable
   bool hasMoved = false;
 }

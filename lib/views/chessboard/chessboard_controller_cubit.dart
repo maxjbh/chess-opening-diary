@@ -20,27 +20,103 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
   ChessboardControllerCubit({required this.size, List<List<Tile>>? tilesData, required this.fromWhitesPerspective})
       : tilesData = tilesData ?? generateStandardStartingPosition(fromWhitesPerspective), super(ChessboardControllerInitial());
 
-  final ValueNotifier<int> boardPainterUpdateNotifier = ValueNotifier<int>(0);
+  ValueNotifier<int> boardPainterUpdateNotifier = ValueNotifier<int>(0);
   final double size;
   final bool fromWhitesPerspective;
+  bool isWhitesTurn = true;
   ///This is a list of ROWS, so y is a coordinate of the first list
   final List<List<Tile>> tilesData;
 
-  ///So that we can quickly revert is the move isn't performed
-  List<List<Tile>>? tilesDataBeforeSelect;
+  /*///So that we can quickly revert is the move isn't performed
+  List<List<Tile>>? tilesDataBeforeSelect;*/
+
+  List<Tile> tilesWithMoveToIndicator = [];
+
+  List<Tile> tilesWithCaptureCircle = [];
+
+  ///A single memory slot as there can only ever be one
+  Tile? passantablePieceContainer;
+
+  ///The currently selected tile
+  Tile? selectedTile;
+
+  bool shouldRepaint = false;
 
   //TODO handle pieces not being able to reveal a check on own king
 
+  void handleClick(TapDownDetails pointerEvent){
+    int realX = ((8*pointerEvent.localPosition.dx)/size).floor();
+    int realY = ((8*pointerEvent.localPosition.dy)/size).floor();
+
+    if(selectedTile != null){
+      _moveToOrUnselect(realX, realY, selectedTile!);
+    }else{
+      _selectTileAt(realX, realY, isWhitesTurn);
+    }
+
+  }
+
+  ///Moves the selected piece to the square if we can go there, otherwise unselects the piece
+  ///selectedTile is the tile we are moving FROM
+  void _moveToOrUnselect(int x, int y, Tile selectedTile){
+    Tile nextSquare = tilesData.elementAt(y).elementAt(x);
+    if(nextSquare.isPossibleMove || nextSquare.doDrawCaptureCircle){
+      Piece? movingPiece = selectedTile.piece;
+      //Handle en-passant
+      handleEnPassantForMove(nextSquare, movingPiece, y);
+      movingPiece?.hasMoved = true;
+      nextSquare.setPiece(movingPiece);
+      selectedTile.setPiece(null);
+      isWhitesTurn = !isWhitesTurn;
+    }
+    selectedTile.isSelected = false;
+    this.selectedTile = null;
+    for(Tile tile in tilesWithCaptureCircle){
+      tile.doDrawCaptureCircle = false;
+    }
+    for(Tile tile in tilesWithMoveToIndicator){
+      tile.isPossibleMove = false;
+    }
+    tilesWithCaptureCircle = [];
+    tilesWithMoveToIndicator = [];
+    shouldRepaint = true;
+    emit(ChessboardNoSelectionState());
+  }
+
+  ///Extracted as the order of operations is important.
+  ///1. Identify if our move is a take en-passant, if so remove the piece then unset passantablePieceContainer to not get a null Pawn in the next step
+  ///2. Always unset passantablePieceContainer on any move because we know a piece is only passantable for one turn
+  ///3. After handling potential previous en-passant see if the next move is creating a new passantable piece
+  void handleEnPassantForMove(Tile nextSquare, Piece? movingPiece, int nextY){
+    //Check if we are taking passantable piece so we can handle it before unsetting
+    Piece? attackedPiece = nextSquare.piece;
+    if(attackedPiece == null && nextSquare.doDrawCaptureCircle){
+      passantablePieceContainer?.setPiece(null);
+      passantablePieceContainer = null;
+    }
+    //Unset passantable piece before potentially setting new one
+    if(passantablePieceContainer != null){
+      (passantablePieceContainer?.piece as Pawn).isPassantable = false;
+      passantablePieceContainer = null;
+    }
+    //Set isPassantable
+    if(movingPiece != null && (movingPiece is Pawn) && !movingPiece.hasMoved && nextSquare.isPossibleMove && (nextY - selectedTile!.y).abs() == 2){
+      movingPiece.isPassantable = true;
+      passantablePieceContainer = nextSquare;
+    }
+  }
+
+  //TODO infinite loop when hitting a king (or all pieces?) that cant move anywhere?
+
   ///Constructs new tilesData containing possible moves for this piece
-  void selectTileAt(int x, int y, bool asWhite){
+  void _selectTileAt(int x, int y, bool asWhite){
     Tile selectedTile = tilesData.elementAt(y).elementAt(x);
     Piece? piece = selectedTile.piece;
     if(piece==null || piece.lightPiece!=asWhite){
       return;
     }
-    //save a copy in case the move gets cancelled
-    tilesDataBeforeSelect = createCopyOfTilesData();
     selectedTile.isSelected = true;
+    this.selectedTile = selectedTile;
     PieceMoveAlgorithm pieceMoveAlgorithm = piece.pieceMoveAlgorithm;
     for(PieceMoveStep pieceMoveStep in pieceMoveAlgorithm.baseMoves){
       if(pieceMoveAlgorithm.isRepeatable){
@@ -49,14 +125,14 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
         PieceMoveStep realMove = pieceMoveStep;
         if(piece is Pawn){
           if(pieceMoveStep.y == 2 && piece.hasMoved){
-            break;
+            continue;
           }
           realMove = Pawn.getRealCoordinateChangeForMove(pieceMoveStep, asWhite, fromWhitesPerspective);
         }
         if(piece is King){
           if(pieceMoveStep.x.abs() == 2){
             if(!_checkIfWeCanCastleFrom(x, y, asWhite, piece, pieceMoveStep)){
-              break;
+              continue;
             }
           }
         }
@@ -65,7 +141,12 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
         _checkNextTileForActivePieceMoveIndicator(nextX, nextY, asWhite, piece, realMove);
       }
     }
+    setShouldRepaint(true);
     emit(PieceSelectedState());
+  }
+
+  setShouldRepaint(bool shouldRepaint){
+    this.shouldRepaint = shouldRepaint;
   }
 
   ///Repeats a step into a given direction until it hits a piece or the side of the board
@@ -120,6 +201,7 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
   ///checks if a move has a piece, sets the tile isMovable and doDrawCaptureCircle booleans, if not null.
   ///Returns a bool that is true if no same-sided piece was found and we still haven't fallen of the board.
   ///Handles king not being able to go into check
+  ///Handles en passant
   bool _checkNextTileForActivePieceMoveIndicator(int nextX, int nextY, bool asWhite, Piece activePiece, PieceMoveStep move){
     if(nextX >= 8 || nextX<0 || nextY >= 8 || nextY<0){
       return false;
@@ -136,6 +218,7 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
     }
     if(nextTilesPiece==null){
       if(move.stepCapturableType != StepCapturableType.onlyCapturable){
+        tilesWithMoveToIndicator.add(nextTile);
         nextTile.isPossibleMove = true;
         return true;
       }
@@ -153,12 +236,14 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
           candidatePiece = candidate.piece;
         }
         if(candidatePiece != null && candidatePiece is Pawn && candidatePiece.lightPiece != asWhite && candidatePiece.isPassantable){
+          tilesWithCaptureCircle.add(nextTile);
           nextTile.doDrawCaptureCircle = true;
         }
       }
       return false;
     }
     if(nextTilesPiece.lightPiece!=asWhite && move.stepCapturableType != StepCapturableType.nonCapturable){
+      tilesWithCaptureCircle.add(nextTile);
       nextTile.doDrawCaptureCircle = true;
     }
     return false;
@@ -208,20 +293,20 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
             for(PieceMoveStep move in algo.baseMoves){
               if(move.x != 0 && move.y != 0){
                 //Check that the x and y differences are the same then check that we are going in correct direction
-                if((x - colIndex).abs() == (y - rowIndex).abs() && stepChangeTakesUsCloser(colIndex, x, move.x) && stepChangeTakesUsCloser(rowIndex, y, move.y)){
+                if((x - colIndex).abs() == (y - rowIndex).abs() && _stepChangeTakesUsCloser(colIndex, x, move.x) && _stepChangeTakesUsCloser(rowIndex, y, move.y)){
                   candidateMove = move;
                   break;
                 }
               }else{
                 if(move.x == 0){
                   //Vertical move along y axis, so x needs to be same, and we need to be heading in correct direction along y axis
-                  if(x == colIndex && stepChangeTakesUsCloser(rowIndex, y, move.y)){
+                  if(x == colIndex && _stepChangeTakesUsCloser(rowIndex, y, move.y)){
                     candidateMove = move;
                     break;
                   }
                 }else{
                   //move.y == 0, horizontal move, y needs to be the same, and we need to be heading in correct direction along x axis
-                  if(y == rowIndex && stepChangeTakesUsCloser(colIndex, x, move.x)){
+                  if(y == rowIndex && _stepChangeTakesUsCloser(colIndex, x, move.x)){
                     candidateMove = move;
                     break;
                   }
@@ -272,7 +357,7 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
     return false;
   }
 
-  bool stepChangeTakesUsCloser(int start, int destination, int stepChange){
+  bool _stepChangeTakesUsCloser(int start, int destination, int stepChange){
     return (start + stepChange - destination).abs() < (start - destination).abs();
   }
 
@@ -340,7 +425,7 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
             piece = darkPawns[colIndex];
           }
         }
-        nextRow.add(Tile(onLight, piece: piece));
+        nextRow.add(Tile(onLight, colIndex, rowIndex, piece: piece));
         onLight = !onLight;
       }
       onLight = !onLight;

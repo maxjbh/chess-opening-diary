@@ -11,7 +11,7 @@ class King extends Piece{
     //Castle from whites perspective as white
     possibleMoves.add(PieceMoveStep(x: 2, y: 0, stepCapturableType: StepCapturableType.nonCapturable));
     possibleMoves.add(PieceMoveStep(x: -2, y: 0, stepCapturableType: StepCapturableType.nonCapturable));
-    PieceMoveAlgorithm result = PieceMoveAlgorithm(isRepeatable: false, baseMoves: (PieceMoveStep.bishopType + PieceMoveStep.rookType));
+    PieceMoveAlgorithm result = PieceMoveAlgorithm(isRepeatable: false, baseMoves: possibleMoves);
     return result;
   }
 
