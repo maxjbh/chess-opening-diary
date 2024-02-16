@@ -56,14 +56,16 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
 
   }
 
-  ///Moves the selected piece to the square if we can go there, otherwise unselects the piece
-  ///selectedTile is the tile we are moving FROM
+  ///Moves the selected piece to the square if we can go there, otherwise unselects the piece.
+  ///selectedTile is the tile we are moving FROM.
+  ///Handles castling
   void _moveToOrUnselect(int x, int y, Tile selectedTile){
     Tile nextSquare = tilesData.elementAt(y).elementAt(x);
     if(nextSquare.isPossibleMove || nextSquare.doDrawCaptureCircle){
       Piece? movingPiece = selectedTile.piece;
-      //Handle en-passant
+      //Handle en-passant and castling
       handleEnPassantForMove(nextSquare, movingPiece, y);
+      handleCastleMove(movingPiece, x, y);
       movingPiece?.hasMoved = true;
       nextSquare.setPiece(movingPiece);
       selectedTile.setPiece(null);
@@ -106,9 +108,28 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
     }
   }
 
+  ///1. Checks if the move is a castle move.
+  ///2. Handle moving the rook during the move
+  void handleCastleMove(Piece? movingPiece, int nextX, int nextY){
+    if(movingPiece == null || movingPiece is! King || movingPiece.hasMoved || (nextX!=2 && nextX!=6)){
+      return;
+    }
+    //(If nextX==6) :
+    Tile rookToMoveContainer = tilesData.elementAt(nextY).elementAt(7);
+    Tile rookHeadingTo = tilesData.elementAt(nextY).elementAt(5);
+    if(nextX==2){
+      rookToMoveContainer = tilesData.elementAt(nextY).elementAt(0);
+      rookHeadingTo = tilesData.elementAt(nextY).elementAt(3);
+    }
+    Piece? rookToMove = rookToMoveContainer.piece;
+    rookHeadingTo.setPiece(rookToMove);
+    rookToMoveContainer.setPiece(null);
+  }
+
   //TODO infinite loop when hitting a king (or all pieces?) that cant move anywhere?
 
   ///Constructs new tilesData containing possible moves for this piece
+  ///Precondition : a tile wasn't already selected
   void _selectTileAt(int x, int y, bool asWhite){
     Tile selectedTile = tilesData.elementAt(y).elementAt(x);
     Piece? piece = selectedTile.piece;
@@ -162,17 +183,17 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
       Piece activePiece,
       bool Function(int nextX, int nextY, bool asWhite, Piece activePiece, PieceMoveStep step) onNextTileDoContinue,
       dynamic Function(int xFinish, int yFinish, bool asWhite, Piece activePiece)? onFinish,
-      bool Function(int nextX, int nextY, int iteratorCount)? extraEndIterationCheck,
+      bool Function(int nextX, int nextY, int iteratorCount)? extraCanContinueCheck,
       int iteratorCount
       ){
     int nextX = x + step.x;
     int nextY = y + step.y;
     bool canContinue = onNextTileDoContinue(nextX, nextY, asWhite, activePiece, step);
-    if(extraEndIterationCheck != null){
-      canContinue = extraEndIterationCheck(nextX, nextY, iteratorCount);
+    if(canContinue && extraCanContinueCheck != null){
+      canContinue = extraCanContinueCheck(nextX, nextY, iteratorCount);
     }
     if(canContinue){
-      _repeatDirection(nextX, nextY, step, asWhite, activePiece, onNextTileDoContinue, onFinish, extraEndIterationCheck, iteratorCount++);
+      return _repeatDirection(nextX, nextY, step, asWhite, activePiece, onNextTileDoContinue, onFinish, extraCanContinueCheck, iteratorCount++);
     }else{
       if(onFinish != null){
         //Only call onFinish with nextX and nextY if there are still on the board,
@@ -181,9 +202,11 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
         if(nextX >= 8 || nextX<0 || nextY >= 8 || nextY<0){
           return onFinish(x, y, asWhite, activePiece);
         }else{
-          return onFinish(nextX, nextY, asWhite, activePiece);
+          dynamic returnValue = onFinish(nextX, nextY, asWhite, activePiece);
+          return returnValue;
         }
       }
+      return null;
     }
   }
 
@@ -194,6 +217,19 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
     }
     Tile nextTile = tilesData.elementAt(nextY).elementAt(nextX);
     Piece? nextTilesPiece = nextTile.piece;
+    return nextTilesPiece==null;
+  }
+
+  ///Checks if next tile is edge or a piece, but returns true if the piece is the current players king (white king if its white's turn)
+  bool _checkNextTileIgnoreCurrentPlayersKing(int nextX, int nextY, bool asWhite, Piece activePiece, PieceMoveStep step){
+    if(nextX >= 8 || nextX<0 || nextY >= 8 || nextY<0){
+      return false;
+    }
+    Tile nextTile = tilesData.elementAt(nextY).elementAt(nextX);
+    Piece? nextTilesPiece = nextTile.piece;
+    if(nextTilesPiece != null && nextTilesPiece is King && nextTilesPiece.lightPiece == isWhitesTurn){
+      return true;
+    }
     return nextTilesPiece==null;
   }
 
@@ -208,16 +244,16 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
     }
     Tile nextTile = tilesData.elementAt(nextY).elementAt(nextX);
     Piece? nextTilesPiece = nextTile.piece;
-    //Check that king isn't moving into a check
-    if(activePiece is King){
-      bool opposingCanSeeNextTile = _checkIfApposingSideCovers(nextX, nextY, asWhite);
-      if(opposingCanSeeNextTile){
-        //Note the value of this return isn't important, its just to quit the function
-        return false;
-      }
-    }
     if(nextTilesPiece==null){
       if(move.stepCapturableType != StepCapturableType.onlyCapturable){
+        //Check that king isn't moving into a check
+        if(activePiece is King){
+          bool opposingCanSeeNextTile = _checkIfOpposingSideCovers(nextX, nextY, asWhite, _checkNextTileIgnoreCurrentPlayersKing);
+          if(opposingCanSeeNextTile){
+            //Note the value of this return isn't important, its just to quit the function
+            return false;
+          }
+        }
         tilesWithMoveToIndicator.add(nextTile);
         nextTile.isPossibleMove = true;
         return true;
@@ -243,6 +279,14 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
       return false;
     }
     if(nextTilesPiece.lightPiece!=asWhite && move.stepCapturableType != StepCapturableType.nonCapturable){
+      //Check that king isn't moving into a check
+      if(activePiece is King){
+        bool opposingCanSeeNextTile = _checkIfOpposingSideCovers(nextX, nextY, asWhite, _checkNextTileIgnoreCurrentPlayersKing);
+        if(opposingCanSeeNextTile){
+          //Note the value of this return isn't important, its just to quit the function
+          return false;
+        }
+      }
       tilesWithCaptureCircle.add(nextTile);
       nextTile.doDrawCaptureCircle = true;
     }
@@ -251,10 +295,11 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
 
   ///Precondition, the piece is a king
   bool _checkIfWeCanCastleFrom(int x, int y, bool asWhite, King activePiece, PieceMoveStep move){
+    //TODO add can't castle out of check
     if(activePiece.hasMoved){
       return false;
     }
-    PieceMoveStep convertedToOneStep = PieceMoveStep(x: (x/2) as int, y: y, stepCapturableType: move.stepCapturableType);
+    PieceMoveStep convertedToOneStep = PieceMoveStep(x: (move.x/2) as int, y: move.y, stepCapturableType: move.stepCapturableType);
     return _repeatDirection(
         x,
         y,
@@ -269,7 +314,7 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
         (int nextX, int nextY, int iteratorCount){
           //only check on 0 as last tile gets verified for check anyway
           if(iteratorCount < 1){
-            return !_checkIfApposingSideCovers(nextX, nextY, asWhite);
+            return !_checkIfOpposingSideCovers(nextX, nextY, asWhite, _checkNextTile);
           }
           return true;
         },
@@ -277,11 +322,18 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
     );
   }
 
-  ///Returns true if the opposing side does cover this square
-  bool _checkIfApposingSideCovers(int x, int y, bool asWhite){
+  ///Returns true if the opposing side does cover this square.
+  ///Including the enemy king even if it would be putting itself in check.
+  ///Prop checkNextTileFunction is here to say if we need ignore the player who's verifying king
+  bool _checkIfOpposingSideCovers(
+      int x,
+      int y,
+      bool asWhite,
+      bool Function(int nextX, int nextY, bool asWhite, Piece activePiece, PieceMoveStep step)  checkNextTile
+    ){
     int rowIndex = 0;
-    int colIndex = 0;
     for(List<Tile> row in tilesData){
+      int colIndex = 0;
       for(Tile tile in row){
         Piece? piece = tile.piece;
         //If there is a piece and its of opposing color we can check if it covers tile at x, y
@@ -318,13 +370,13 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
                   colIndex,
                   rowIndex,
                   candidateMove,
-                  asWhite,
+                  !asWhite,
                   piece,
-                  _checkNextTile,
+                  checkNextTile,
                   (int xFinish, int yFinish, bool asWhite, Piece activePiece){return xFinish == x && yFinish == y;},
                   (int lastX, int lastY, int iteratorCount){return lastX != x && lastY != y;},
                   0
-              );
+              ) as bool;
               if(doesSeeTile){
                 return doesSeeTile;
               }
@@ -333,8 +385,8 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
             if(piece is Pawn){
               for(PieceMoveStep move in algo.baseMoves){
                 if(move.stepCapturableType == StepCapturableType.onlyCapturable){
-                  PieceMoveStep realMove = Pawn.getRealCoordinateChangeForMove(move, asWhite, fromWhitesPerspective);
-                  if(realMove.y + rowIndex == x && realMove.x + colIndex == y){
+                  PieceMoveStep realMove = Pawn.getRealCoordinateChangeForMove(move, !asWhite, fromWhitesPerspective);
+                  if(realMove.y + rowIndex == y && realMove.x + colIndex == x){
                     return true;
                   }
                 }
