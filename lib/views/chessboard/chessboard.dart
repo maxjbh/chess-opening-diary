@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:ui' as ui show Image;
 
+import '../../chess_logic/pieces/king.dart';
 import '../../chess_logic/pieces/knight.dart';
 import '../../chess_logic/pieces/piece.dart';
 import '../../utils/global_tools.dart';
@@ -79,6 +80,9 @@ class ChessboardPainter extends CustomPainter{
   final Paint selectedTilePainter = Paint()
     ..color = Colors.yellow.withOpacity(0.4);
 
+  final Paint checkmateTilePainter = Paint()
+    ..color = Colors.red.withOpacity(0.4);
+
   final Paint captureCirclePainter = Paint()
     ..color = Colors.black54.withOpacity(0.2)
     ..style = PaintingStyle.stroke
@@ -119,9 +123,17 @@ class ChessboardPainter extends CustomPainter{
               selectedTilePainter
           );
         }
+
         //Draw piece
         Piece? piece = tileData.piece;
         if(piece != null){
+          //Draw checkmate indicator before king
+          if(controllerCubit.state is CheckmateState && piece is King && piece.lightPiece == controllerCubit.isWhitesTurn){
+            canvas.drawRect(
+                Rect.fromLTWH(xOffset, yOffset, squareSize, squareSize),
+                checkmateTilePainter
+            );
+          }
           canvas.drawImage(chessImageTools.loadedImageMap[piece.imageKey]!, offset, paint);
         }
         if(tileData.doDrawCaptureCircle){

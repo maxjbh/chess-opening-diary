@@ -3,6 +3,11 @@ import 'package:chess_opening_diary/chess_logic/pieces/piece.dart';
 class Tile{
   Tile(this.lightTile, this.x, this.y, {this.piece});
 
+  // Copy constructor for deep copy
+  Tile createCopy() {
+    return Tile(lightTile, x, y, piece: piece);
+  }
+
   final bool lightTile;
   final int x;
   final int y;

@@ -11,7 +11,7 @@ class Homepage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    ChessboardControllerCubit chessboardControllerCubit = ChessboardControllerCubit(size: 800.0, fromWhitesPerspective: true);
+    ChessboardControllerCubit chessboardControllerCubit = ChessboardControllerCubit.newInstance(size: 800.0, fromWhitesPerspective: true);
     return WillPopScope(
       onWillPop: () => GlobalTools.onFinalBackPressed(context),
       child: SafeArea(
