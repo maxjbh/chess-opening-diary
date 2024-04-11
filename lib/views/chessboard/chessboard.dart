@@ -8,9 +8,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:ui' as ui show Image;
 
+import '../../chess_logic/pieces/bishop.dart';
 import '../../chess_logic/pieces/king.dart';
 import '../../chess_logic/pieces/knight.dart';
 import '../../chess_logic/pieces/piece.dart';
+import '../../chess_logic/pieces/queen.dart';
+import '../../chess_logic/pieces/rook.dart';
 import '../../utils/global_tools.dart';
 
 class Chessboard extends StatelessWidget {
@@ -54,6 +57,9 @@ class Chessboard extends StatelessWidget {
 
   Future<bool> _loadRequiredImages() async{
     int squareSizeAsInt = controllerCubit.size.toInt() ~/ 8;
+    int halfSizeAsInt = controllerCubit.size.toInt() ~/ 16;
+    debugPrint(squareSizeAsInt.toString());
+    debugPrint(halfSizeAsInt.toString());
     await chessImageTools.loadImage(ImageTools.lightSquarePath, squareSizeAsInt, squareSizeAsInt, ImageTools.lightSquareKey);
     await chessImageTools.loadImage(ImageTools.darkSquarePath, squareSizeAsInt, squareSizeAsInt, ImageTools.darkSquareKey);
     await chessImageTools.loadImage(ImageTools.darkPawnPath, squareSizeAsInt, squareSizeAsInt, ImageTools.darkPawnKey);
@@ -68,6 +74,15 @@ class Chessboard extends StatelessWidget {
     await chessImageTools.loadImage(ImageTools.darkBishopPath, squareSizeAsInt, squareSizeAsInt, ImageTools.darkBishopKey);
     await chessImageTools.loadImage(ImageTools.darkKingPath, squareSizeAsInt, squareSizeAsInt, ImageTools.darkKingKey);
     await chessImageTools.loadImage(ImageTools.darkQueenPath, squareSizeAsInt, squareSizeAsInt, ImageTools.darkQueenKey);
+    //Small versions
+    await chessImageTools.loadImage(ImageTools.lightRookPath, halfSizeAsInt, halfSizeAsInt, ImageTools.getSmallPieceImageKey(ImageTools.lightRookKey));
+    await chessImageTools.loadImage(ImageTools.darkRookPath, halfSizeAsInt, halfSizeAsInt, ImageTools.getSmallPieceImageKey(ImageTools.darkRookKey));
+    await chessImageTools.loadImage(ImageTools.lightBishopPath, halfSizeAsInt, halfSizeAsInt, ImageTools.getSmallPieceImageKey(ImageTools.lightBishopKey));
+    await chessImageTools.loadImage(ImageTools.darkBishopPath, halfSizeAsInt, halfSizeAsInt, ImageTools.getSmallPieceImageKey(ImageTools.darkBishopKey));
+    await chessImageTools.loadImage(ImageTools.lightKnightPath, halfSizeAsInt, halfSizeAsInt, ImageTools.getSmallPieceImageKey(ImageTools.lightKnightKey));
+    await chessImageTools.loadImage(ImageTools.darkKnightPath, halfSizeAsInt, halfSizeAsInt, ImageTools.getSmallPieceImageKey(ImageTools.darkKnightKey));
+    await chessImageTools.loadImage(ImageTools.lightQueenPath, halfSizeAsInt, halfSizeAsInt, ImageTools.getSmallPieceImageKey(ImageTools.lightQueenKey));
+    await chessImageTools.loadImage(ImageTools.darkQueenPath, halfSizeAsInt, halfSizeAsInt, ImageTools.getSmallPieceImageKey(ImageTools.darkQueenKey));
     return true;
   }
 
@@ -99,8 +114,6 @@ class ChessboardPainter extends CustomPainter{
     double squareSize = controllerCubit.size/8.0;
 
     var paint = Paint();
-      
-    //selectedTilePainter
 
     for(int rowIndex = 0; rowIndex<8; rowIndex++){
       List<Tile> rowData = controllerCubit.tilesData.elementAt(rowIndex);
@@ -145,6 +158,38 @@ class ChessboardPainter extends CustomPainter{
         
       }
     }
+    //Handle PromotingState
+    if(controllerCubit.state is PromotingState){
+      PromotingState promotingState = controllerCubit.state as PromotingState;
+      _drawPromoteMenu(canvas, promotingState, squareSize);
+    }
+  }
+
+  void _drawPromoteMenu(Canvas canvas, PromotingState promotingState, double squareSize){
+    double xOffset = promotingState.atX * squareSize;
+    double yOffset = promotingState.atY * squareSize;
+    final Paint imagePainter = Paint();
+    //BackgroundPanel
+    final Paint backgroundPainter = Paint()
+      ..color = Colors.grey.withOpacity(0.1);
+    final Paint backgroundRimPainter = Paint()
+      ..color = Colors.black54.withOpacity(0.1)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5.0;
+    canvas.drawRect(
+        Rect.fromLTWH(xOffset, yOffset, squareSize/2.0, squareSize*2),
+        backgroundPainter
+    );
+    canvas.drawRect(
+        Rect.fromLTWH(xOffset, yOffset, squareSize/2.0, squareSize*2),
+        backgroundRimPainter
+    );
+
+    //Draw piece options, order : Queen, Rook, Bishop, Knight
+    canvas.drawImage(chessImageTools.loadedImageMap[ImageTools.getSmallPieceImageKey(Queen.getImageKeyForColor(controllerCubit.isWhitesTurn))]!, Offset(xOffset, yOffset), imagePainter);
+    canvas.drawImage(chessImageTools.loadedImageMap[ImageTools.getSmallPieceImageKey(Rook.getImageKeyForColor(controllerCubit.isWhitesTurn))]!, Offset(xOffset, yOffset + squareSize/2.0), imagePainter);
+    canvas.drawImage(chessImageTools.loadedImageMap[ImageTools.getSmallPieceImageKey(Bishop.getImageKeyForColor(controllerCubit.isWhitesTurn))]!, Offset(xOffset, yOffset + (squareSize/2.0)*2), imagePainter);
+    canvas.drawImage(chessImageTools.loadedImageMap[ImageTools.getSmallPieceImageKey(Knight.getImageKeyForColor(controllerCubit.isWhitesTurn))]!, Offset(xOffset, yOffset + (squareSize/2.0)*3), imagePainter);
   }
 
   @override

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui' as ui show Image;
 
@@ -36,6 +37,11 @@ class ImageTools{
   static const String darkBishopKey = 'darkBishop';
   static const String darkKingKey = 'darkKing';
   static const String darkQueenKey = 'darkQueen';
+
+  static String getSmallPieceImageKey(String baseImageKey){
+    debugPrint('small_$baseImageKey');
+    return 'small_$baseImageKey';
+  }
 
   //Image paths
   static const String lightSquarePath = 'assets/images/white_square.png';

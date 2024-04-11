@@ -4,7 +4,7 @@ import '../piece_move_algorithms/piece_move_algorithm.dart';
 import '../piece_move_algorithms/piece_move_step.dart';
 
 class Knight extends Piece{
-  Knight(bool lightPiece):super(lightPiece, (lightPiece ? 'lightKnight' : 'batman'), _getPieceMoveAlgo());
+  Knight(bool lightPiece):super(lightPiece, getImageKeyForColor(lightPiece), _getPieceMoveAlgo());
 
   static PieceMoveAlgorithm _getPieceMoveAlgo(){
     PieceMoveStep a = PieceMoveStep(x: 1, y: 2, stepCapturableType: StepCapturableType.both);
@@ -17,5 +17,9 @@ class Knight extends Piece{
     PieceMoveStep h = PieceMoveStep(x: -2, y: -1, stepCapturableType: StepCapturableType.both);
     PieceMoveAlgorithm result = PieceMoveAlgorithm(isRepeatable: false, baseMoves: [a, b, c, d, e, f, g, h]);
     return result;
+  }
+
+  static String getImageKeyForColor(bool lightPiece){
+    return (lightPiece ? 'lightKnight' : 'batman');
   }
 }

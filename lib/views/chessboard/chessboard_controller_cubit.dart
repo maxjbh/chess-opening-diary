@@ -29,7 +29,7 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
     List<List<Tile>> realTilesData = tilesData ?? generateStandardStartingPosition(fromWhitesPerspective);
     //Handle initialKingPositions
     Tile whiteKingPos = Tile(true, 0, 0);
-    Tile blackKingPos = Tile(true, 0, 0);;
+    Tile blackKingPos = Tile(true, 0, 0);
     for (List<Tile> row in realTilesData) {
       for (Tile tile in row) {
         if(tile.piece != null && tile.piece is King){
@@ -78,7 +78,7 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
       int realY = ((8*pointerEvent.localPosition.dy)/size).floor();
 
       if(selectedTile != null){
-        _moveToOrUnselect(realX, realY, selectedTile!);
+        _validateAndMoveToOrUnselect(realX, realY, selectedTile!);
       }else{
         _selectTileAt(realX, realY, isWhitesTurn);
       }
@@ -86,9 +86,23 @@ class ChessboardControllerCubit extends Cubit<ChessboardControllerState> {
   }
 
   ///Moves the selected piece to the square if we can go there, otherwise unselects the piece.
+  ///Only if it is really a move (emit PromotingState otherwise).
   ///selectedTile is the tile we are moving FROM.
   ///Handles castling.
   ///Handles if this move puts the other player in Check and if so, handles Checkmate.
+  ///Handles Pawn promotion
+  void _validateAndMoveToOrUnselect(int x, int y, Tile selectedTile){
+    //Handle pawn Promotion
+    if(selectedTile.piece! is Pawn && (y == 0 || y == 7) ){
+      //Instead of running next few lines right away, extract them to run later, for now emit something
+      shouldRepaint = true;
+      emit(PromotingState(x, y));
+      return;
+    }
+    _moveToOrUnselect(x, y, selectedTile);
+  }
+
+  ///The code that's run when we are actualy moving a piece to x, y.
   void _moveToOrUnselect(int x, int y, Tile selectedTile){
     Tile nextSquare = tilesData.elementAt(y).elementAt(x);
     bool isCheckmate = false;
